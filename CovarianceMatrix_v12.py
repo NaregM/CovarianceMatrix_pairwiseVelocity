@@ -47,9 +47,14 @@ class CovarianceMatrix_v12():
         self.fsky = fsky
 
 
+    def R_range(self):
+
+        return np.arange(self.r_min, self.r_max, self.Dr)
+
+
     def make_grid(self):
 
-        R = np.arange(self.r_min, self.r_max, self.Dr)
+        R = self.R_range() # np.arange(self.r_min, self.r_max, self.Dr)
 
         return np.meshgrid(R, R, indexing = 'ij')
 
@@ -219,3 +224,41 @@ class CovarianceMatrix_v12():
         r, rp = self.make_grid()
 
         return np.vectorize(self.shot_noise_func)(r, rp)
+
+
+    def npair(self):
+
+        k_ = np.linspace(1e-4, 5, 200)
+        ps_ = self.PS.P(self.z, k_)
+
+        Vol_s = self.CmovingVolume()
+        n_a = mass_function.massFunction(self.M, self.z, mdef = 'fof', model = 'jenkins01', q_out = 'dndlnM')
+
+        R_ = self.R_range()
+        Dr = self.Dr
+
+        XI = np.array([self.xi_quad(r) for r in R_]) * self.b**2
+
+        return 0.5 * (n_a * self.fsky * Vol_s) * (4. * np.pi * ((R_)**2) * n_a * Dr + 4. * np.pi * (R_**2) * n_a *  XI*0.679**3 * Dr)
+
+
+    def measurement(self, s_tau, s_instr, return_matrix = False):
+
+        s_v = np.sqrt(s_tau**2 + s_instr**2)
+
+        npair_ = self.npair()
+
+        if return_matrix == False:
+
+            return 2 * s_v**2 / npair_
+
+
+        else:
+
+            C_diag = 2 * s_v**2 / npair_
+
+            C_measure = np.zeros((self.R_range().size, self.R_range().size))
+
+            np.fill_diagonal(C_measure, C_diag)
+
+            return C_measure
